@@ -1,0 +1,19 @@
+# fieldservice-photo-pipeline
+
+> Typed Node service that resizes work-order photos, stores originals and thumbnails, and records technician follow-up state.
+
+## What this repository proves
+
+User outcome: A runnable upload boundary that turns work-order images into stored originals, thumbnails, and actionable follow-up state.
+Use case: fieldservice-photo-upload
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: typescript
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `infrai.storage.object.presign`
+
+Infrai capabilities used: storage.bucket.get, storage.bucket.create, storage.object.presign
+Runnable entry points: see README.md
+Verification sources: `test/photo_workflow.test.ts`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt

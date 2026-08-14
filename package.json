@@ -1,0 +1,24 @@
+{
+  "name": "fieldservice-photo-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/work_order_photo_service.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/photo_workflow.test.ts",
+    "start": "tsx src/work_order_photo_service.ts"
+  },
+  "dependencies": {
+    "sharp": "^0.34.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
