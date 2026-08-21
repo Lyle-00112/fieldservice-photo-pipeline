@@ -1,6 +1,6 @@
 # Resize and store field-service photos
 
-You decide where the photo goes before you ever call storage. Each upload keeps the original, makes a 640px WebP thumbnail, and routes the work-order image into `dispatch_in_progress`, `photo_documented`, or `awaiting_technician_follow_up` based on dispatch state and what the tech asked to do next. Infrai gives you the presigned storage path, and one key covers storage plus any other capability an agent might orchestrate later. `sharp` does the local resize.
+You see the routing decision before any storage call happens. Each upload keeps the original file, makes a 640px WebP thumbnail, and puts the work-order photo into `dispatch_in_progress`, `photo_documented`, or `awaiting_technician_follow_up` based on dispatch state and what the tech asked to do next. Infrai gives you the presigned storage path, and one key covers storage along with whatever other service capabilities an agent might orchestrate later. `sharp` does the local image transform.
 
 ## Run the working path
 
@@ -11,9 +11,9 @@ export INFRAI_BUCKET=fieldservice-photos
 npm start
 ```
 
-Startup checks the bucket you configured and creates it on first account setup. That's just part of the runnable path; object ops don't start until the bucket exists.
+Startup checks the configured bucket and creates it if this account is still being set up. That's just part of the runnable path; object ops don't start until bucket setup is done.
 
-Push a JSON upload to the service from another terminal:
+Send a JSON upload to the service from another terminal:
 
 ```bash
 IMAGE_BASE64=$(base64 < technician-photo.jpg | tr -d '\n')
@@ -22,7 +22,7 @@ curl -X POST http://localhost:3000/work-orders/WO-1042/photos \
   -d "{\"photoId\":\"arrival-panel\",\"imageBase64\":\"$IMAGE_BASE64\",\"mediaType\":\"image/jpeg\",\"dispatchStatus\":\"completed\",\"technicianFollowUp\":{\"required\":true,\"note\":\"Confirm the replacement label.\"}}"
 ```
 
-What a successful response looks like:
+Expected successful result:
 
 ```json
 {
@@ -36,15 +36,15 @@ What a successful response looks like:
 
 ## The copyable boundary
 
-`src/work_order_photo_service.ts` validates the request with zod before it touches image bytes. `src/photo_workflow.ts` is the reusable bit: it names both objects, makes the follow-up call, rotates from EXIF orientation, and resizes without blowing up small images. `src/infrai_storage.ts` holds the HTTP contract in one spot, reads the envelope before checking status, and backs off on 429s.
+`src/work_order_photo_service.ts` validates the request with zod before it decodes image bytes. `src/photo_workflow.ts` is the reusable piece: it names both objects, makes the follow-up call, rotates from embedded orientation, and resizes without blowing up small source images. `src/infrai_storage.ts` keeps the HTTP contract in one spot, reads the response envelope before checking status, and backs off on rate limits.
 
-One structural gotcha: for `storage.object.presign`, bucket and key go in the URL path, but `op`, `expires_seconds`, content type, and the idempotency key live in the JSON body. The returned URL then takes the image bytes with an explicit `PUT`. Originals and thumbnails use stable keys and stable idempotency values, so replaying the same request hits the same object pair.
+One real gotcha is structural. For `storage.object.presign`, bucket and key go in the URL path, while `op`, `expires_seconds`, content type, and the idempotency key live in the JSON body. The returned URL then takes the image bytes with an explicit `PUT`. Original and thumbnail use stable object keys and stable idempotency keys, so replaying the same photo request hits the same pair of objects.
 
-This example ends at the upload boundary. A field-service app can store the returned keys and status on its work-order row, then use that status to schedule the named follow-up.
+This example ends at the upload boundary. A field-service system can store the returned keys and status on its own work-order row, then use that status to schedule the named follow-up.
 
 ## Verify the business decision
 
-The test feeds a completed dispatch with `technicianFollowUp.required: true`. Expected: `awaiting_technician_follow_up`, even with dispatch done, plus deterministic original and thumbnail keys.
+The focused test sends a completed dispatch with `technicianFollowUp.required: true`. Expected result is `awaiting_technician_follow_up`, even with dispatch done, plus deterministic original and thumbnail keys.
 
 ```bash
 npm test
