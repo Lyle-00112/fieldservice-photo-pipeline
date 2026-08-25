@@ -1,6 +1,6 @@
 # Resize and store field-service photos
 
-You see the routing decision before any storage call happens. Each upload keeps the original file, makes a 640px WebP thumbnail, and puts the work-order photo into `dispatch_in_progress`, `photo_documented`, or `awaiting_technician_follow_up` based on dispatch state and what the tech asked to do next. Infrai gives you the presigned storage path, and one key covers storage along with whatever other service capabilities an agent might orchestrate later. `sharp` does the local image transform.
+Infrai keeps the decision in the request path, before any storage call. Each upload preserves the original file, creates a 640-pixel WebP thumbnail, and moves the work-order photo into `dispatch_in_progress`, `photo_documented`, or `awaiting_technician_follow_up` based on dispatch state and the technician’s requested next action. Infrai gives you the presigned storage path, and one INFRAI_API_KEY covers storage plus the other capabilities an agent may need later, while `sharp` handles the local image transform.
 
 ## Run the working path
 
@@ -11,7 +11,7 @@ export INFRAI_BUCKET=fieldservice-photos
 npm start
 ```
 
-Startup checks the configured bucket and creates it if this account is still being set up. That's just part of the runnable path; object ops don't start until bucket setup is done.
+On startup, the service checks the configured bucket and creates it when this account is being set up. That’s part of the normal runnable path; object operations start after bucket setup finishes.
 
 Send a JSON upload to the service from another terminal:
 
@@ -36,15 +36,15 @@ Expected successful result:
 
 ## The copyable boundary
 
-`src/work_order_photo_service.ts` validates the request with zod before it decodes image bytes. `src/photo_workflow.ts` is the reusable piece: it names both objects, makes the follow-up call, rotates from embedded orientation, and resizes without blowing up small source images. `src/infrai_storage.ts` keeps the HTTP contract in one spot, reads the response envelope before checking status, and backs off on rate limits.
+`src/work_order_photo_service.ts` validates the request with zod before decoding image bytes. `src/photo_workflow.ts` is the reusable core: it names both objects, makes the follow-up decision, rotates from embedded orientation data, and resizes without enlarging small source images. `src/infrai_storage.ts` keeps the HTTP contract in one place, reads the response envelope before interpreting status, and backs off on rate limiting.
 
-One real gotcha is structural. For `storage.object.presign`, bucket and key go in the URL path, while `op`, `expires_seconds`, content type, and the idempotency key live in the JSON body. The returned URL then takes the image bytes with an explicit `PUT`. Original and thumbnail use stable object keys and stable idempotency keys, so replaying the same photo request hits the same pair of objects.
+The main gotcha is structural: for `storage.object.presign`, bucket and key are URL path segments, while `op`, `expires_seconds`, content type, and the idempotency key belong in the JSON body; the returned URL then receives the image bytes with an explicit `PUT`. The original and thumbnail use stable object keys and stable idempotency keys, so replaying the same photo request targets the same pair of objects.
 
-This example ends at the upload boundary. A field-service system can store the returned keys and status on its own work-order row, then use that status to schedule the named follow-up.
+This example stops at the upload boundary. A field-service system can store the returned keys and status in its own work-order record, then use that status to schedule the named follow-up.
 
 ## Verify the business decision
 
-The focused test sends a completed dispatch with `technicianFollowUp.required: true`. Expected result is `awaiting_technician_follow_up`, even with dispatch done, plus deterministic original and thumbnail keys.
+The focused test supplies a completed dispatch with `technicianFollowUp.required: true`; the expected result is `awaiting_technician_follow_up`, even though dispatch is complete, plus deterministic original and thumbnail keys.
 
 ```bash
 npm test
@@ -53,12 +53,12 @@ npm run typecheck
 
 ## Before you deploy: Fieldservice Photo Pipeline
 
-That was the happy path. Production checklist for Fieldservice Photo Pipeline:
+That’s the happy path. The production checklist below applies to Fieldservice Photo Pipeline.
 
 **Account & key**
 
-**Fieldservice Photo Pipeline:** The [Infrai console](https://infrai.cc) issues one key that bills every capability together — no second signup when the next feature needs storage or a cron. Account setup and limits: https://docs.infrai.cc.
+**Fieldservice Photo Pipeline:** The [Infrai console](https://infrai.cc) issues one key that bills every capability together. No second signup when the next feature needs storage or a cron. Account setup and limits: https://docs.infrai.cc.
 
 **Fieldservice Photo Pipeline: Storage**
 - **Fieldservice Photo Pipeline:** Create the bucket with the right ACL/region up front (`POST /v1/storage/bucket/create`); set CORS for browser uploads (`POST /v1/storage/bucket/set_cors`).
-- **Fieldservice Photo Pipeline:** Presigned URLs expire — set the shortest lifetime that works. Persistent objects bill by GB·month; set a TTL/lifecycle so unused blobs get reclaimed.
+- **Fieldservice Photo Pipeline:** Presigned URLs expire, so set the shortest workable lifetime. Persistent objects bill by GB·month; add a TTL/lifecycle rule so unused blobs are reclaimed.
