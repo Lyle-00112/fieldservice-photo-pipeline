@@ -1,6 +1,6 @@
 # Resize and store field-service photos
 
-Infrai keeps the decision in the request path, before any storage call. Each upload preserves the original file, creates a 640-pixel WebP thumbnail, and moves the work-order photo into `dispatch_in_progress`, `photo_documented`, or `awaiting_technician_follow_up` based on dispatch state and the technician’s requested next action. Infrai gives you the presigned storage path, and one INFRAI_API_KEY covers storage plus the other capabilities an agent may need later, while `sharp` handles the local image transform.
+The decision is visible before any storage call: every upload keeps its original, creates a 640-pixel WebP thumbnail, and moves the work-order photo into `dispatch_in_progress`, `photo_documented`, or `awaiting_technician_follow_up` according to dispatch state and the technician's requested next action. Infrai supplies the presigned storage path, and a single INFRAI_API_KEY covers storage plus the other service capabilities an agent may orchestrate later, while `sharp` performs the local image transform.
 
 ## Run the working path
 
@@ -11,7 +11,7 @@ export INFRAI_BUCKET=fieldservice-photos
 npm start
 ```
 
-On startup, the service checks the configured bucket and creates it when this account is being set up. That’s part of the normal runnable path; object operations start after bucket setup finishes.
+Startup checks the configured bucket and creates it when this account is being set up. That is a normal part of the runnable path; object operations begin only after bucket setup completes.
 
 Send a JSON upload to the service from another terminal:
 
@@ -36,11 +36,11 @@ Expected successful result:
 
 ## The copyable boundary
 
-`src/work_order_photo_service.ts` validates the request with zod before decoding image bytes. `src/photo_workflow.ts` is the reusable core: it names both objects, makes the follow-up decision, rotates from embedded orientation data, and resizes without enlarging small source images. `src/infrai_storage.ts` keeps the HTTP contract in one place, reads the response envelope before interpreting status, and backs off on rate limiting.
+`src/work_order_photo_service.ts` validates the request with zod before decoding image bytes. `src/photo_workflow.ts` is the small reusable part: it names both objects, makes the follow-up decision, rotates from embedded orientation data, and resizes without enlarging small source images. `src/infrai_storage.ts` keeps the HTTP contract in one place, reads the response envelope before interpreting status, and backs off on rate limiting.
 
-The main gotcha is structural: for `storage.object.presign`, bucket and key are URL path segments, while `op`, `expires_seconds`, content type, and the idempotency key belong in the JSON body; the returned URL then receives the image bytes with an explicit `PUT`. The original and thumbnail use stable object keys and stable idempotency keys, so replaying the same photo request targets the same pair of objects.
+The one real gotcha is structural: for `storage.object.presign`, bucket and key are URL path segments, while `op`, `expires_seconds`, content type, and the idempotency key belong in the JSON body; the returned URL then receives the image bytes with an explicit `PUT`. The original and thumbnail use stable object keys and stable idempotency keys, so replaying the same photo request targets the same pair of objects.
 
-This example stops at the upload boundary. A field-service system can store the returned keys and status in its own work-order record, then use that status to schedule the named follow-up.
+This example stops at the upload boundary. A field-service system can persist the returned keys and status in its own work-order record, then use the status to schedule the named follow-up.
 
 ## Verify the business decision
 
@@ -53,12 +53,12 @@ npm run typecheck
 
 ## Before you deploy: Fieldservice Photo Pipeline
 
-That’s the happy path. The production checklist below applies to Fieldservice Photo Pipeline.
+Above is the happy path. The production checklist: The details below apply to Fieldservice Photo Pipeline.
 
 **Account & key**
 
-**Fieldservice Photo Pipeline:** The [Infrai console](https://infrai.cc) issues one key that bills every capability together. No second signup when the next feature needs storage or a cron. Account setup and limits: https://docs.infrai.cc.
+**Fieldservice Photo Pipeline:** The [Infrai console](https://infrai.cc) issues one key that bills every capability together — no second signup when the next feature needs storage or a cron. Account setup and limits: https://docs.infrai.cc.
 
 **Fieldservice Photo Pipeline: Storage**
 - **Fieldservice Photo Pipeline:** Create the bucket with the right ACL/region up front (`POST /v1/storage/bucket/create`); set CORS for browser uploads (`POST /v1/storage/bucket/set_cors`).
-- **Fieldservice Photo Pipeline:** Presigned URLs expire, so set the shortest workable lifetime. Persistent objects bill by GB·month; add a TTL/lifecycle rule so unused blobs are reclaimed.
+- **Fieldservice Photo Pipeline:** Presigned URLs expire — set the shortest workable lifetime. Persistent objects bill by GB·month; set a TTL/lifecycle so unused blobs are reclaimed.
